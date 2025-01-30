@@ -1,0 +1,4 @@
+nibabel
+tqdm
+scikit-image
+numba
