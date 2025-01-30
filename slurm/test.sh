@@ -5,9 +5,9 @@
 #SBATCH --mail-type=ALL           # Mail events (NONE, BEGIN, END, FAIL, ALL)
 #SBATCH --mail-user=zhang_lumi@foxmail.com 
 #SBATCH -A F00120230017
-#SBATCH -p p-A800
+#SBATCH -p p-A100
 #SBATCH -N 1
-#SBATCH -c 1
+#SBATCH -c 6
 #SBATCH --gres=gpu:1
 
 # Load necessary modules

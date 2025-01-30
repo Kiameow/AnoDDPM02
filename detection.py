@@ -233,7 +233,7 @@ def anomalous_metric_calculation():
         output = diff.forward_backward(
                 unet, image,
                 see_whole_sequence=None,
-                t_distance=200, denoise_fn=args["noise_fn"]
+                t_distance=800, denoise_fn=args["noise_fn"]
                 )
 
         mse = (image - output).square()

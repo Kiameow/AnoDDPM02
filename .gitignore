@@ -13,3 +13,4 @@ model
 temp.txt
 dataset
 .vscode
+__pycache__

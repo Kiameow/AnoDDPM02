@@ -659,8 +659,8 @@ class OPMEDDataset(Dataset):
             if 'mask' in sample:
                 sample['mask'] = self.transform(sample['mask'])
                 sample['mask'] = (sample["mask"] > 0).float()
-            else:
-                sample['mask'] = (sample["mask"] > 0.5).float()
+        else:
+            sample['mask'] = (sample["mask"] > 0.5).float()
                 
         return sample
 
