@@ -648,7 +648,7 @@ class OPMEDDataset(Dataset):
         
         # Load mask if in test mode
         if not self.train:
-            mask_filename = self.filenames[idx].replace(self.modality, f'{self.modality}_roi')
+            mask_filename = self.filenames[idx].replace(self.modality, 'roi')
             mask_path = os.path.join(self.mask_dir, mask_filename)
             mask = cv2.imread(mask_path, 0)
             sample['mask'] = mask
@@ -916,22 +916,8 @@ if __name__ == "__main__":
 
     for i in range(4):
         new = next(loader)
-        tensor = new["mask"]
-        print(type(new))
-        print(tensor.min())
-        #plt.imshow(helpers.gridify_output(new["image"], 4), cmap="gray")
-        #plt.show()
-        print(torch.max(new["mask"]))
-        print(torch.min(new["mask"]))
-        print(new["mask"])
-        #plt.imshow(helpers.gridify_output(new["mask"], 4), cmap="gray")
-        #plt.show()
-        #plt.pause(1)
-        hist = torch.histc(tensor, bins=10, min=tensor.min().item(), max=tensor.max().item())
-
-        # 绘制直方图
-        plt.bar(range(10), hist.numpy())
-        plt.xlabel("Bin")
-        plt.ylabel("Frequency")
-        plt.title("Tensor Value Distribution")
+        plt.imshow(helpers.gridify_output(new["image"], 4), cmap="gray")
         plt.show()
+        plt.imshow(helpers.gridify_output(new["mask"], 4), cmap="gray")
+        plt.show()
+        plt.pause(1)

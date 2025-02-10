@@ -137,7 +137,7 @@ def train(training_dataset_loader, testing_dataset_loader, args, resume):
                     f"est time remaining: {hours}:{mins:02.0f}\r"
                     )
 
-        if epoch % 1000 == 0 and epoch > 0:
+        if epoch % 1000 == 0 and epoch > 0 or epoch == 100 or epoch == 500:
             save(unet=model, args=args, optimiser=optimiser, final=False, ema=ema, epoch=epoch)
 
     save(unet=model, args=args, optimiser=optimiser, final=True, ema=ema)

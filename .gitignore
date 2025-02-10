@@ -11,6 +11,13 @@ diffusion-videos
 diffusion-training-images
 model
 temp.txt
-dataset
-.vscode
-__pycache__
+*test*
+*.txt
+.pylibs
+.vscode/
+__pycache__/
+anomalous/
+dataset/
+dataset_OPMED/
+logs/
+openbayes_params.json

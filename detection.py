@@ -40,7 +40,7 @@ def anomalous_validation_1():
             ROOT_DIR=f'{DATASET_PATH}', img_size=args['img_size'],
             slice_selection="iterateKnown_restricted", resized=False
             )
-    loader = dataset.init_dataset_loader(ano_dataset, args)
+    loader = dataset.init_dataset_loader(ano_dataset, args, shuffle=False)
     plt.rcParams['figure.dpi'] = 200
 
     try:
@@ -198,7 +198,7 @@ def anomalous_metric_calculation():
                 slice_selection="iterateKnown_restricted", resized=False, cleaned=True
                 )
         d_set_size = len(d_set) * 4
-    loader = dataset.init_dataset_loader(d_set, args)
+    loader = dataset.init_dataset_loader(d_set, args, shuffle=False)
     plt.rcParams['figure.dpi'] = 200
 
     dice_data = []
@@ -212,8 +212,6 @@ def anomalous_metric_calculation():
 
     start_time = time.time()
     for i in range(d_set_size):
-        if i > 102:
-            break
         
         save_path = f'./anomalous/ARGS={args["arg_num"]}/{i}'
         os.makedirs(save_path, exist_ok=True)
@@ -229,17 +227,17 @@ def anomalous_metric_calculation():
             new = next(loader)
             image = new["image"].to(device)
             mask = new["mask"].to(device)
-
+        
         output = diff.forward_backward(
                 unet, image,
                 see_whole_sequence=None,
-                t_distance=800, denoise_fn=args["noise_fn"]
+                t_distance=200, denoise_fn=args["noise_fn"]
                 )
 
         mse = (image - output).square()
         fpr_simplex, tpr_simplex, _ = evaluation.ROC_AUC(mask.to(torch.uint8), mse)
         AUC_scores.append(evaluation.AUC_score(fpr_simplex, tpr_simplex))
-        mse = (mse > 0.5).float()
+        mse = (mse >= 0.01).float()
         
         vutils.save_image(image, save_path + "/original.png", normalize=True)
         vutils.save_image(mask, save_path + "/mask.png", normalize=True)
@@ -252,7 +250,7 @@ def anomalous_metric_calculation():
                         mask, mse=mse
                         ).cpu().item()
                 )
-
+        
         ssim_data.append(
                 evaluation.SSIM(
                         image.permute(0, 2, 3, 1).reshape(*args["img_size"], image.shape[1]),
@@ -285,15 +283,16 @@ def anomalous_metric_calculation():
                     f"remaining time: {hours}:{mins:02.0f}"
                     )
 
-        if i % 4 == 0 and (args["dataset"].lower() != "carpet" and args["dataset"].lower() != "leather"):
-            print(f"file: {new['filenames'][0][-9:-4]}")
-            print(f"Dice: {np.mean(dice_data[-4:])} +- {np.std(dice_data[-4:])}")
-            print(f"Structural Similarity Index (SSIM): {np.mean(ssim_data[-4:])} +- {np.std(ssim_data[-4:])}")
-            print(f"PSNR: {np.mean(psnr_data[-4:])} +- {np.std(psnr_data[-4:])}")
-            print(f"Precision: {np.mean(precision[-4:])} +- {np.std(precision[-4:])}")
-            print(f"Recall: {np.mean(recall[-4:])} +- {np.std(recall[-4:])}")
-            print(f"FPR: {np.mean(FPR[-4:])} +- {np.std(FPR[-4:])}")
-            print(f"IOU: {np.mean(IOU[-4:])} +- {np.std(IOU[-4:])}")
+        if i % 1 == 0 and (args["dataset"].lower() != "carpet" and args["dataset"].lower() != "leather"):
+            print(f"index: {i}")
+            print(f"file: {new['filenames'][0]}")
+            print(f"Dice: {dice_data[i]}")
+            print(f"Structural Similarity Index (SSIM): {ssim_data[i]}")
+            print(f"PSNR: {psnr_data[i]}")
+            print(f"Precision: {precision[i]}")
+            print(f"Recall: {recall[i]}")
+            print(f"FPR: {FPR[i]}")
+            print(f"IOU: {IOU[i]}")
             print("\n")
 
     print()
@@ -451,6 +450,115 @@ def graph_data():
                         )
                 f.write("\n")
 
+def reconstruction_metric_calculation():
+    args, output = load_parameters(device)
+    in_channels = 1
+    if args["dataset"].lower() == "leather":
+        in_channels = 3
+
+    print(f"args{args['arg_num']}")
+    unet = UNetModel(
+            args['img_size'][0], args['base_channels'], channel_mults=args['channel_mults'], in_channels=in_channels
+            )
+
+    betas = get_beta_schedule(args['T'], args['beta_schedule'])
+
+    diff = GaussianDiffusionModel(
+            args['img_size'], betas, loss_weight=args['loss_weight'],
+            loss_type=args['loss-type'], noise=args["noise_fn"], img_channels=in_channels
+            )
+
+    unet.load_state_dict(output["ema"])
+    unet.to(device)
+    unet.eval()
+    if args["dataset"].lower() == "carpet":
+        d_set = dataset.DAGM("./DATASETS/CARPET/Class1", True)
+        d_set_size = len(d_set)
+    elif args["dataset"].lower() == "leather":
+        d_set = dataset.MVTec(
+                "./DATASETS/leather", anomalous=True, img_size=args["img_size"],
+                rgb=True, include_good=False
+                )
+        d_set_size = len(d_set)
+    elif args["dataset"].lower() == "opmed":
+        d_set = dataset.OPMEDDataset("./dataset", train=True, modality='FLAIR2')
+        d_set_size = len(d_set)
+    else:
+        d_set = dataset.AnomalousMRIDataset(
+                ROOT_DIR=f'{DATASET_PATH}', img_size=args['img_size'],
+                slice_selection="iterateKnown_restricted", resized=False, cleaned=True
+                )
+        d_set_size = len(d_set) * 4
+    loader = dataset.init_dataset_loader(d_set, args)
+    plt.rcParams['figure.dpi'] = 200
+
+    ssim_data = []
+    psnr_data = []
+
+    start_time = time.time()
+    for i in range(d_set_size):
+        
+        save_path = f'./anomalous/ARGS={args["arg_num"]}/{i}'
+        os.makedirs(save_path, exist_ok=True)
+
+        if args["dataset"].lower() != "carpet" and args["dataset"].lower() != "leather" and args["dataset"].lower() != "opmed":
+            if i % 4 == 0:
+                new = next(loader)
+                new["image"] = new["image"].reshape(new["image"].shape[1], 1, *args["img_size"])
+                new["mask"] = new["mask"].reshape(new["mask"].shape[1], 1, *args["img_size"])
+            image = new["image"][i % 4, ...].to(device).reshape(1, 1, *args["img_size"])
+            mask = new["mask"][i % 4, ...].to(device).reshape(1, 1, *args["img_size"])
+        else:
+            new = next(loader)
+            image = new["image"].to(device)
+        
+        output = diff.forward_backward(
+                unet, image,
+                see_whole_sequence=None,
+                t_distance=200, denoise_fn=args["noise_fn"]
+                )
+
+        vutils.save_image(image, save_path + "/original.png", normalize=True)
+        vutils.save_image(output, save_path + "/reconstructed.png", normalize=True)
+        
+        ssim_data.append(
+                evaluation.SSIM(
+                        image.permute(0, 2, 3, 1).reshape(*args["img_size"], image.shape[1]),
+                        output.permute(0, 2, 3, 1).reshape(*args["img_size"], image.shape[1]),
+                        data_range=2.0
+                        )
+                )
+        psnr_data.append(
+                evaluation.PSNR(
+                        output.permute(0, 2, 3, 1).reshape(*args["img_size"], image.shape[1]),
+                        image.permute(0, 2, 3, 1).reshape(*args["img_size"], image.shape[1])
+                )
+        )
+
+        if i % 8 == 0:
+            time_taken = time.time() - start_time
+            remaining_epochs = d_set_size - i
+            time_per_epoch = time_taken / (i + 1)
+            hours = remaining_epochs * time_per_epoch / 3600
+            mins = (hours % 1) * 60
+            hours = int(hours)
+
+            print(
+                    f"elapsed time: {int(time_taken / 3600)}:{((time_taken / 3600) % 1) * 60:02.0f}, "
+                    f"remaining time: {hours}:{mins:02.0f}"
+                    )
+
+        if i % 1 == 0 and (args["dataset"].lower() != "carpet" and args["dataset"].lower() != "leather"):
+            print(f"index: {i}")
+            print(f"file: {new['filenames'][0]}")
+            print(f"Structural Similarity Index (SSIM): {ssim_data[i]}")
+            print(f"PSNR: {psnr_data[i]}")
+            print("\n")
+
+    print()
+    print("Overall: ")
+    print(f"Structural Similarity Index (SSIM): {np.mean(ssim_data)} +- {np.std(ssim_data)}")
+    print(f"PSNR: {np.mean(psnr_data)} +- {np.std(psnr_data)}")
 
 def roc_data():
     sys.argv[1] = "28"
@@ -947,7 +1055,6 @@ def ce_sliding_window(img, netG, input_cropped, args):
 if __name__ == "__main__":
     import sys
 
-
     plt.rcParams['font.family'] = 'sans-serif'
     DATASET_PATH = './DATASETS/CancerousDataset/EdinburghDataset/Anomalous-T1'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -972,5 +1079,5 @@ if __name__ == "__main__":
         sys.argv[1] = "28"
         graph_data()
     else:
-
+        #reconstruction_metric_calculation()
         anomalous_metric_calculation()

@@ -39,7 +39,7 @@ def load_checkpoint(param, use_checkpoint, device):
             try:
                 file_dir = f"./model/diff-params-ARGS={param}/checkpoint/{i}"
                 loaded_model = torch.load(file_dir, map_location=device)
-                print(f"use checkpoint {i}")
+                print(f"load checkpoint {i}")
                 break
             except RuntimeError:
                 continue
