@@ -212,9 +212,6 @@ def anomalous_metric_calculation():
 
     start_time = time.time()
     for i in range(d_set_size):
-        
-        save_path = f'./anomalous/ARGS={args["arg_num"]}/{i}'
-        os.makedirs(save_path, exist_ok=True)
 
         if args["dataset"].lower() != "carpet" and args["dataset"].lower() != "leather" and args["dataset"].lower() != "opmed":
             if i % 4 == 0:
@@ -227,6 +224,9 @@ def anomalous_metric_calculation():
             new = next(loader)
             image = new["image"].to(device)
             mask = new["mask"].to(device)
+            
+        save_path = f'./anomalous/ARGS={args["arg_num"]}/{i}_{new['filenames'][0]}'
+        os.makedirs(save_path, exist_ok=True)
         
         output = diff.forward_backward(
                 unet, image,
@@ -243,13 +243,24 @@ def anomalous_metric_calculation():
         vutils.save_image(mask, save_path + "/mask.png", normalize=True)
         vutils.save_image(output, save_path + "/reconstructed.png", normalize=True)
         vutils.save_image(mse, save_path + "/diff.png", normalize=True)
+        
+        if np.all(mask == 0):
+                ## healthy sample
+                label = 0
+        else:
+                label = 1
         # print(img.shape, output.shape, img_mask.shape, mse.shape)
-        dice_data.append(
-                evaluation.dice_coeff(
-                        image, output.to(device),
-                        mask, mse=mse
-                        ).cpu().item()
-                )
+        if label:
+                dice_data.append(
+                        evaluation.dice_coeff(
+                                image, output.to(device),
+                                mask, mse=mse
+                                ).cpu().item()
+                        )
+                precision.append(evaluation.precision(mask, mse).cpu().numpy())
+                recall.append(evaluation.recall(mask, mse).cpu().numpy())
+                IOU.append(evaluation.IoU(mask, mse))
+                FPR.append(evaluation.FPR(mask, mse).cpu().numpy())
         
         ssim_data.append(
                 evaluation.SSIM(
@@ -264,10 +275,6 @@ def anomalous_metric_calculation():
                         image.permute(0, 2, 3, 1).reshape(*args["img_size"], image.shape[1])
                 )
         )
-        precision.append(evaluation.precision(mask, mse).cpu().numpy())
-        recall.append(evaluation.recall(mask, mse).cpu().numpy())
-        IOU.append(evaluation.IoU(mask, mse))
-        FPR.append(evaluation.FPR(mask, mse).cpu().numpy())
         plt.close('all')
 
         if i % 8 == 0:
@@ -286,13 +293,15 @@ def anomalous_metric_calculation():
         if i % 1 == 0 and (args["dataset"].lower() != "carpet" and args["dataset"].lower() != "leather"):
             print(f"index: {i}")
             print(f"file: {new['filenames'][0]}")
-            print(f"Dice: {dice_data[i]}")
+            if label:
+                print(f"Dice: {dice_data[i]}")
+                print(f"Precision: {precision[i]}")
+                print(f"Recall: {recall[i]}")
+                print(f"FPR: {FPR[i]}")
+                print(f"IOU: {IOU[i]}")
+            
             print(f"Structural Similarity Index (SSIM): {ssim_data[i]}")
             print(f"PSNR: {psnr_data[i]}")
-            print(f"Precision: {precision[i]}")
-            print(f"Recall: {recall[i]}")
-            print(f"FPR: {FPR[i]}")
-            print(f"IOU: {IOU[i]}")
             print("\n")
 
     print()

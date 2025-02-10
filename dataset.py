@@ -650,7 +650,11 @@ class OPMEDDataset(Dataset):
         if not self.train:
             mask_filename = self.filenames[idx].replace(self.modality, 'roi')
             mask_path = os.path.join(self.mask_dir, mask_filename)
-            mask = cv2.imread(mask_path, 0)
+            if os.path.exists(mask_path):
+                mask = cv2.imread(mask_path, 0)
+            else:
+                # Create a black mask (all zeros) with the same shape as the image
+                mask = np.zeros_like(image)
             sample['mask'] = mask
             
         # Apply transforms if specified
